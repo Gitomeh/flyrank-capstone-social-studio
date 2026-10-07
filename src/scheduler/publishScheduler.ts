@@ -1,13 +1,11 @@
-// Simple in-memory scheduler for local testing without Redis
-// In production, this would use BullMQ + Redis
+import { Queue } from 'bullmq';
+import Redis from 'ioredis';
 
-interface ScheduledJob {
-  variantId: string;
-  scheduledFor: Date;
-  timeoutId: NodeJS.Timeout;
-}
+const connection = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
+  maxRetriesPerRequest: null,
+});
 
-const scheduledJobs = new Map<string, ScheduledJob>();
+export const publishQueue = new Queue('publish-queue', { connection });
 
 export interface PublishJobData {
   variantId: string;
@@ -21,44 +19,37 @@ export async function scheduleVariant(variantId: string, scheduledFor: Date): Pr
     throw new Error('Scheduled time must be in the future');
   }
 
-  // Clear existing job if any
-  const existingJob = scheduledJobs.get(variantId);
-  if (existingJob) {
-    clearTimeout(existingJob.timeoutId);
-  }
+  const jobId = `variant-${variantId}`;
 
-  // Schedule the job
-  const timeoutId = setTimeout(async () => {
-    console.log(`[Scheduler] Executing scheduled job for variant ${variantId}`);
-    // Import here to avoid circular dependency
-    const { processPublishJob } = await import('../workers/publishWorker');
-    await processPublishJob({
-      id: `job-${variantId}`,
-      data: {
-        variantId,
-        scheduledFor: scheduledFor.toISOString(),
-      },
-    } as any);
-    scheduledJobs.delete(variantId);
-  }, delay);
-
-  scheduledJobs.set(variantId, {
-    variantId,
-    scheduledFor,
-    timeoutId,
+  // Remove existing job if any
+  await publishQueue.remove(jobId).catch(() => {
+    // Job might not exist, ignore error
   });
+
+  // Add new job with delay
+  await publishQueue.add(
+    'publish',
+    {
+      variantId,
+      scheduledFor: scheduledFor.toISOString(),
+    },
+    {
+      jobId,
+      delay,
+      attempts: 3,
+      backoff: {
+        type: 'exponential',
+        delay: 2000,
+      },
+    }
+  );
 
   console.log(`[Scheduler] Scheduled variant ${variantId} for ${scheduledFor.toISOString()}`);
 }
 
 export async function removeScheduledJob(variantId: string): Promise<void> {
-  const job = scheduledJobs.get(variantId);
-  if (job) {
-    clearTimeout(job.timeoutId);
-    scheduledJobs.delete(variantId);
-  }
-}
-
-export function getScheduledJobs(): ScheduledJob[] {
-  return Array.from(scheduledJobs.values());
+  const jobId = `variant-${variantId}`;
+  await publishQueue.remove(jobId).catch(() => {
+    // Job might not exist, ignore error
+  });
 }

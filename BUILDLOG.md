@@ -112,12 +112,13 @@ This project was built with assistance from Devin AI. The AI helped with:
 **Date**: 2026-10-03
 
 **Actions**:
-- Implemented BullMQ scheduler
-- Created publish worker
+- Implemented BullMQ scheduler with Redis
+- Created publish worker with BullMQ Worker
 - Added idempotency checks in worker
 - Implemented crash recovery logic
 - Added job deduplication
 - Created health endpoint
+- Added retry logic with exponential backoff
 
 **Files Created**:
 - `src/scheduler/publishScheduler.ts`
@@ -130,6 +131,7 @@ This project was built with assistance from Devin AI. The AI helped with:
 - Unique constraint on (variantId, idempotencyKey) prevents duplicates
 - Worker checks existing successful attempts before publishing
 - Job deduplication ensures only one scheduled job per variant
+- 3 retry attempts with exponential backoff
 
 ### Phase 6: Configuration + Setup
 
@@ -138,13 +140,11 @@ This project was built with assistance from Devin AI. The AI helped with:
 **Actions**:
 - Created package.json with all dependencies
 - Configured TypeScript
-- Created Docker Compose for PostgreSQL + Redis (for production use)
+- Created Docker Compose for PostgreSQL + Redis
 - Created .env.example
 - Created .gitignore
-- Created Prisma schema (initially PostgreSQL, later changed to SQLite for local testing)
+- Created Prisma schema with PostgreSQL
 - Created seed script
-
-**Modification**: Due to lack of Docker/Redis on local system, changed from PostgreSQL to SQLite and implemented simple in-memory scheduler for local testing. The architecture still supports BullMQ + Redis for production as documented.
 
 **Files Created**:
 - `package.json`

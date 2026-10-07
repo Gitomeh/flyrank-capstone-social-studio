@@ -324,9 +324,9 @@ If storing platform credentials in database:
 - Node.js 18+
 - Git
 
-### Option 1: Local Development (SQLite)
+### Option 1: Local Development (PostgreSQL + Redis via Docker)
 
-For local development without Docker:
+For local development with durable scheduling:
 
 1. Clone the Repository
 ```bash
@@ -339,51 +339,14 @@ cd flyrank-capstone-social-studio
 npm install
 ```
 
-3. Configure Environment
-```bash
-cp .env.example .env
-```
-
-Edit `.env` with your values:
-- `DATABASE_URL=file:./social-studio.db` (SQLite for local dev)
-- Add `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` for real Telegram publishing
-- Set `ENCRYPTION_KEY` (32-byte random string)
-- Configure publisher types (e.g., `PUBLISHER_TELEGRAM=mock_x` for testing)
-
-4. Generate Prisma Client
-```bash
-npm run db:generate
-```
-
-5. Initialize Database
-```bash
-npx prisma db push
-```
-
-6. Seed Database (Optional)
-```bash
-npm run db:seed
-```
-
-7. Start the API Server
-```bash
-npm run dev
-```
-
-Server runs on http://localhost:3000
-
-### Option 2: Production Setup (PostgreSQL + Redis)
-
-For production deployment with durable scheduling:
-
-1. Start Infrastructure
+3. Start Infrastructure
 ```bash
 docker-compose up -d
 ```
 
 This starts PostgreSQL and Redis containers.
 
-2. Configure Environment
+4. Configure Environment
 ```bash
 cp .env.example .env
 ```
@@ -393,13 +356,36 @@ Edit `.env` with your values:
 - Set `REDIS_URL` to Redis connection string
 - Add `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` for real Telegram publishing
 - Set `ENCRYPTION_KEY` (32-byte random string)
+- Configure publisher types (e.g., `PUBLISHER_TELEGRAM=mock_x` for testing)
 
-3. Follow steps 4-7 from Option 1
+5. Generate Prisma Client
+```bash
+npm run db:generate
+```
 
-4. Start the Worker (Separate Terminal)
+6. Run Database Migrations
+```bash
+npm run db:migrate
+```
+
+7. Seed Database (Optional)
+```bash
+npm run db:seed
+```
+
+8. Start the API Server
+```bash
+npm run dev
+```
+
+Server runs on http://localhost:3000
+
+9. Start the Worker (Separate Terminal)
 ```bash
 npm run worker
 ```
+
+
 
 ## Test Instructions
 
@@ -470,7 +456,6 @@ curl http://localhost:3000/api/variants/<variant-id>/history
 - No web UI (API-only)
 - No real-time notifications
 - No bulk operations
-- Local development uses SQLite and in-memory scheduler (for production, use PostgreSQL + Redis + BullMQ as documented)
 
 ## Future Improvements
 

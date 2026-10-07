@@ -144,11 +144,20 @@ $ npm test -- --run
 **Requirement**: Durable scheduling that survives worker restarts.
 
 **Evidence**:
-- Scheduler: `src/scheduler/publishScheduler.ts` using in-memory scheduling with setTimeout (Note: SQLite used instead of Redis for local testing without Docker)
-- Worker: `src/workers/publishWorker.ts`
-- Configuration: Simple in-memory scheduler for local testing
+- Scheduler: `src/scheduler/publishScheduler.ts` using BullMQ with Redis-backed queue
+- Worker: `src/workers/publishWorker.ts` using BullMQ Worker
+- Redis queue persists scheduled jobs across worker restarts
+- Job deduplication using `variant-${variantId}` as job ID
+- 3 retry attempts with exponential backoff
 
-**Note**: Due to lack of Docker/Redis on the local system, the project uses SQLite with a simple in-memory scheduler. The architecture supports BullMQ + Redis for production use as documented in README.md.
+**Test Output**:
+```bash
+$ docker-compose up -d
+# Starts PostgreSQL and Redis containers
+
+$ npm run worker
+[Worker] Publish worker started with BullMQ
+```
 
 ## 9. Worker Restart Recovery
 

@@ -1,10 +1,16 @@
+import { Worker, Job } from 'bullmq';
+import Redis from 'ioredis';
 import { getPublisher } from '../adapters';
 import { VariantRepository, PublishAttemptRepository } from '../repositories';
+
+const connection = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
+  maxRetriesPerRequest: null,
+});
 
 const variantRepository = new VariantRepository();
 const publishAttemptRepository = new PublishAttemptRepository();
 
-export async function processPublishJob(job: any): Promise<void> {
+export async function processPublishJob(job: Job): Promise<void> {
   const { variantId, scheduledFor } = job.data;
 
   console.log(`[Worker] Processing publish job for variant ${variantId}, scheduled for ${scheduledFor}`);
@@ -70,7 +76,7 @@ export async function processPublishJob(job: any): Promise<void> {
       await variantRepository.updateStatus(variantId, 'failed');
 
       console.error(`[Worker] Failed to publish variant ${variantId}: ${result.error}`);
-      // Don't throw - log the error and continue
+      throw new Error(result.error || 'Unknown error');
     }
   } catch (error) {
     // Update attempt as failed
@@ -81,23 +87,42 @@ export async function processPublishJob(job: any): Promise<void> {
     await variantRepository.updateStatus(variantId, 'failed');
 
     console.error(`[Worker] Error publishing variant ${variantId}:`, errorMessage);
-    // Don't throw - log the error and continue
+    throw error; // Re-throw to trigger BullMQ retry
   }
 }
 
 export async function startWorker(): Promise<void> {
-  console.log('[Worker] Publish worker started (simple scheduler mode)');
+  const worker = new Worker(
+    'publish-queue',
+    async (job: Job) => {
+      await processPublishJob(job);
+    },
+    {
+      connection,
+      concurrency: 5,
+    }
+  );
+
+  worker.on('completed', (job) => {
+    console.log(`[Worker] Job ${job.id} completed`);
+  });
+
+  worker.on('failed', (job, err) => {
+    console.error(`[Worker] Job ${job?.id} failed:`, err.message);
+  });
+
+  console.log('[Worker] Publish worker started with BullMQ');
 
   // Graceful shutdown
-  process.on('SIGTERM', async () => {
-    console.log('[Worker] SIGTERM received, closing worker...');
+  const gracefulShutdown = async () => {
+    console.log('[Worker] Shutting down...');
+    await worker.close();
+    await connection.quit();
     process.exit(0);
-  });
+  };
 
-  process.on('SIGINT', async () => {
-    console.log('[Worker] SIGINT received, closing worker...');
-    process.exit(0);
-  });
+  process.on('SIGTERM', gracefulShutdown);
+  process.on('SIGINT', gracefulShutdown);
 }
 
 // Start worker if this file is run directly
