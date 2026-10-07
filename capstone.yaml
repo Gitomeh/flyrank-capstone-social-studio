@@ -1,0 +1,9 @@
+run: npm run dev
+test: npm test
+seed: npm run db:seed
+base_url: http://localhost:3000
+endpoints:
+  posts: /api/posts
+  campaigns: /api/campaigns
+  variants: /api/variants
+  health: /api/health

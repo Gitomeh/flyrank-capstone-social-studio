@@ -1,0 +1,79 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model BlogPost {
+  id        String   @id @default(uuid())
+  title     String
+  body      String
+  url       String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  campaigns Campaign[]
+
+  @@map("blog_posts")
+}
+
+model Campaign {
+  id        String   @id @default(uuid())
+  postId    String
+  post      BlogPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  status    String   @default("draft")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  variants  SocialVariant[]
+
+  @@map("campaigns")
+}
+
+model SocialVariant {
+  id           String   @id @default(uuid())
+  campaignId   String
+  campaign     Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  platform     String
+  content      String
+  status       String   @default("draft")
+  scheduledFor DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  publishAttempts PublishAttempt[]
+
+  @@unique([campaignId, platform])
+  @@map("social_variants")
+}
+
+model PublishAttempt {
+  id             String   @id @default(uuid())
+  variantId      String
+  variant        SocialVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  platform       String
+  idempotencyKey String
+  status         String   @default("started")
+  attemptNumber  Int      @default(1)
+  externalPostId String?
+  errorMessage   String?
+  startedAt      DateTime @default(now())
+  completedAt    DateTime?
+  createdAt      DateTime @default(now())
+
+  @@unique([variantId, idempotencyKey])
+  @@index([variantId])
+  @@map("publish_attempts")
+}
+
+model MockPost {
+  id             String   @id @default(uuid())
+  platform       String
+  content        String
+  idempotencyKey String
+  externalPostId String
+  createdAt      DateTime @default(now())
+
+  @@unique([platform, idempotencyKey])
+  @@map("mock_posts")
+}
