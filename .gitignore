@@ -11,6 +11,7 @@ yarn.lock
 # Build output
 dist/
 build/
+*.tsbuildinfo
 
 # Logs
 logs/
